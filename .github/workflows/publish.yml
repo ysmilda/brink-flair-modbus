@@ -1,0 +1,44 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  id-token: write # trusted publishing to PyPI
+  contents: write # create the GitHub release
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Install development dependencies
+        run: uv sync --extra cli --extra dev
+
+      - name: Lint and type check
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy brink_flair_modbus
+
+      - name: Tests
+        run: uv run pytest
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true

@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "brink-flair-modbus"
+version = "0.1.1"
+description = "A Python library for reading and writing Brink Flair ventilation units over Modbus"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Yorick Smilda" }]
+keywords = ["brink", "flair", "home-assistant", "modbus", "ventilation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Home Automation",
+]
+dependencies = ["modbus-connection>=4.8.1,<5"]
+
+[project.urls]
+Repository = "https://github.com/ysmilda/brink-flair-modbus"
+Issues = "https://github.com/ysmilda/brink-flair-modbus/issues"
+
+[project.optional-dependencies]
+cli = ["modbus-connection[tmodbus]>=4.8.1,<5"]
+dev = ["mypy>=1.15", "pytest>=8.3", "pytest-asyncio>=0.25", "ruff>=0.9"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["brink_flair_modbus"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["brink_flair_modbus"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.mypy]
+files = ["brink_flair_modbus", "tests"]
+python_version = "3.12"
+strict = true
+show_error_codes = true
+warn_return_any = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
