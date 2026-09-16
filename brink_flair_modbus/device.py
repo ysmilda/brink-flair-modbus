@@ -10,6 +10,7 @@ from modbus_connection import ModbusError
 from modbus_connection.model import Component, ComponentGroup
 
 from .device_types import model_name_for_device_type
+from .enums import StandbyCommand
 from .flow_limits import FlowLimits, flow_limits_for, flow_limits_for_model
 from .subsystems import (
     DeviceInformation,
@@ -44,7 +45,6 @@ class BrinkFlair:
         mapped yet (the config flow collects it from the user); it overrides
         both the display name and the airflow envelope.
         """
-        self._unit = unit
         self._model_override = model_override
         self.info = DeviceInformation(unit, model_override=model_override)
         self.measurements = Measurements(unit)
@@ -115,4 +115,13 @@ class BrinkFlair:
         only semantics the reference config relies on; the unit does not
         report the command back, so state is tracked optimistically.
         """
-        await self._unit.write_register(8003, 1 if enabled else 2)
+        command = StandbyCommand.STANDBY if enabled else StandbyCommand.NORMAL
+        await self.settings.write("standby", command)
+
+    async def async_reset_appliance(self) -> None:
+        """Pulse the appliance reset register to reboot the unit.
+
+        Writing ``1`` to register 8011 restarts the appliance; the register
+        clears itself once the action has been read out.
+        """
+        await self.settings.write("reset_appliance", True)

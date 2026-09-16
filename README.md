@@ -1,8 +1,6 @@
 # brink-flair-modbus
 
-A Python library for reading and writing **Brink Flair** (and compatible)
-ventilation units over Modbus, on top of
-[`modbus-connection`](https://pypi.org/project/modbus-connection/).
+A Python library for reading and writing **Brink Flair** (and compatible) ventilation units over Modbus, on top of [`modbus-connection`](https://pypi.org/project/modbus-connection/). It follows the spec given by [brink](https://www.brinkclimatesystems.nl/documenten/modbus-uwa2-b-uwa2-e-installation-regulations-614882.pdf).
 
 ## Usage
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from ..data_model import (
     NAN_INT16,
     BrinkComponent,
+    boolean,
     gauge,
     integer,
     uint32,
@@ -22,9 +23,15 @@ _MEASUREMENT_RANGES = (
     (4023, 4024),  # supply and exhaust static pressure
     (4031, 4037),  # supply airflow, fan speed and climate
     (4041, 4047),  # exhaust airflow, fan speed and climate
+    (4051, 4051),  # bypass step position
+    (4061, 4061),  # preheater capacity
     (4071, 4072),  # frost heater power and fan reduction
-    (4081, 4081),  # outside (NTC1) temperature
-    (4115, 4117),  # filter used hours and the 32-bit used-volume counter
+    (4081, 4083),  # NTC1 and NTC2 temperature and RHT humidity
+    (4110, 4111),  # current time and date
+    (4113, 4114),  # operating time in hours (32-bit)
+    (4115, 4119),  # filter counters and total flow
+    (4520, 4524),  # extension module NTC, contacts and analogue inputs
+    (4541, 4544),  # extension module relay and analogue outputs
 )
 
 
@@ -60,11 +67,23 @@ class Measurements(BrinkComponent):
         unit="m³/h",
         description="Actual supply volume flow",
     )
+    supply_mass_flow = integer(
+        4033,
+        signed=False,
+        unit="kg/h",
+        description="Actual supply mass flow",
+    )
     supply_fan_rpm = integer(
         4034,
         signed=False,
         unit="rpm",
         description="Supply fan speed",
+    )
+    supply_anemometer_rpm = integer(
+        4035,
+        signed=False,
+        unit="rpm",
+        description="Supply inlet anemometer speed",
     )
     supply_temperature = gauge(
         4036,
@@ -93,11 +112,23 @@ class Measurements(BrinkComponent):
         unit="m³/h",
         description="Actual exhaust volume flow",
     )
+    exhaust_mass_flow = integer(
+        4043,
+        signed=False,
+        unit="kg/h",
+        description="Actual exhaust mass flow",
+    )
     exhaust_fan_rpm = integer(
         4044,
         signed=False,
         unit="rpm",
         description="Exhaust fan speed",
+    )
+    exhaust_anemometer_rpm = integer(
+        4045,
+        signed=False,
+        unit="rpm",
+        description="Exhaust anemometer speed",
     )
     exhaust_temperature = gauge(
         4046,
@@ -113,6 +144,17 @@ class Measurements(BrinkComponent):
         signed=True,
         unit="%",
         description="Relative humidity of the air exhausted from the house",
+    )
+    bypass_step_position = integer(
+        4051,
+        signed=False,
+        description="The bypass step position relative to its point of zero",
+    )
+    preheater_capacity = integer(
+        4061,
+        signed=False,
+        unit="%",
+        description="The preheater output as a percentage of its capacity",
     )
     frost_heater_setpoint = integer(
         4071,
@@ -135,6 +177,38 @@ class Measurements(BrinkComponent):
         digits=1,
         description="Outside temperature",
     )
+    dwelling_temperature = gauge(
+        4082,
+        0.1,
+        signed=True,
+        nan=NAN_INT16,
+        unit="°C",
+        digits=1,
+        description="Dwelling temperature (Flair 450/600)",
+    )
+    rht_humidity = gauge(
+        4083,
+        0.1,
+        signed=False,
+        unit="%",
+        digits=1,
+        description="Ambient relative humidity reported by the RHT sensor",
+    )
+    _current_time_word = integer(
+        4110,
+        signed=False,
+        description="Current time (high byte hours, low byte minutes)",
+    )
+    _current_date_word = integer(
+        4111,
+        signed=False,
+        description="Current date (high byte days, low byte year within decade)",
+    )
+    current_operating_time = uint32(
+        4113,
+        unit="h",
+        description="Total operating time in hours",
+    )
     filter_used_hours = integer(
         4115,
         signed=False,
@@ -145,6 +219,68 @@ class Measurements(BrinkComponent):
         unit="m³/h",
         description="Total volume channeled through the filter",
     )
+    total_flow = uint32(
+        4118,
+        unit="m³/h",
+        description="Total volume channeled through the unit",
+    )
+    extension_temperature = gauge(
+        4520,
+        0.1,
+        signed=True,
+        nan=NAN_INT16,
+        unit="°C",
+        digits=1,
+        description="Temperature of the extension module NTC",
+    )
+    extension_contact_1 = boolean(
+        4521,
+        description="Whether extension contact 1 is closed",
+    )
+    extension_contact_2 = boolean(
+        4522,
+        description="Whether extension contact 2 is closed",
+    )
+    extension_analogue_input_1 = gauge(
+        4523,
+        0.1,
+        signed=False,
+        unit="V",
+        digits=1,
+        description="Voltage at extension analogue input 1",
+    )
+    extension_analogue_input_2 = gauge(
+        4524,
+        0.1,
+        signed=False,
+        unit="V",
+        digits=1,
+        description="Voltage at extension analogue input 2",
+    )
+    extension_relay_1 = boolean(
+        4541,
+        description="Whether extension relay output 1 is energized (24V)",
+    )
+    extension_relay_2 = boolean(
+        4542,
+        description="Whether extension relay output 2 is energized (24V)",
+    )
+    extension_analogue_output_1 = gauge(
+        4543,
+        0.1,
+        signed=False,
+        unit="V",
+        digits=1,
+        description="Voltage at extension analogue output 1",
+    )
+    extension_analogue_output_2 = gauge(
+        4544,
+        0.1,
+        signed=False,
+        unit="V",
+        digits=1,
+        description="Voltage at extension analogue output 2",
+    )
 
     @property
     def filter_used_days(self) -> float | None:
@@ -153,3 +289,23 @@ class Measurements(BrinkComponent):
         if hours is None:
             return None
         return hours / 24
+
+    @property
+    def current_time(self) -> str | None:
+        """Return the unit clock as ``HH:MM`` (input register 4110)."""
+        word = self._current_time_word
+        if word is None:
+            return None
+        return f"{(word >> 8) & 0xFF:02d}:{word & 0xFF:02d}"
+
+    @property
+    def current_date(self) -> str | None:
+        """Return the unit date as ``DD-YY`` (input register 4111).
+
+        The register carries only the day and the year within the current
+        decade, so the returned date is necessarily approximate.
+        """
+        word = self._current_date_word
+        if word is None:
+            return None
+        return f"{(word >> 8) & 0xFF:02d}-{word & 0xFF:02d}"
