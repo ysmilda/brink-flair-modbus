@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from modbus_connection import ModbusError
+from modbus_connection import ModbusError, ModbusExceptionError
 from modbus_connection.model import Component, ComponentGroup
 
 from .device_types import model_name_for_device_type
@@ -14,6 +14,7 @@ from .enums import StandbyCommand
 from .flow_limits import FlowLimits, flow_limits_for, flow_limits_for_model
 from .subsystems import (
     DeviceInformation,
+    ExtensionModule,
     Measurements,
     Settings,
     Status,
@@ -50,6 +51,7 @@ class BrinkFlair:
         self.measurements = Measurements(unit)
         self.status = Status(unit)
         self.settings = Settings(unit)
+        self.extension = ExtensionModule(unit)
         self._group = ComponentGroup(unit, self.components)
         self._reset_filter_pending = False
 
@@ -64,8 +66,17 @@ class BrinkFlair:
 
     @property
     def components(self) -> tuple[Component, ...]:
-        """Return every actively polled subsystem."""
+        """Return every subsystem refreshed by the pooled update.
+
+        ``extension`` is excluded: its registers are optional and refused by
+        units without the module, so it is read separately.
+        """
         return (self.info, self.measurements, self.status, self.settings)
+
+    @property
+    def extension_available(self) -> bool:
+        """Whether the optional extension module is installed and readable."""
+        return self.extension.available
 
     @property
     def flow_limits(self) -> FlowLimits:
@@ -89,8 +100,18 @@ class BrinkFlair:
         return change_days - used_days
 
     async def async_update(self) -> None:
-        """Refresh all active subsystems in pooled Modbus reads."""
+        """Refresh all active subsystems in pooled Modbus reads.
+
+        The optional extension module is read separately: units without it
+        refuse the extension registers, which then mark it unavailable instead
+        of failing the update.
+        """
         await self._group.async_update()
+        if self.extension.available:
+            try:
+                await self.extension.async_update()
+            except ModbusExceptionError:
+                self.extension.mark_unavailable()
 
     async def async_reset_filter(self, delay: float = 2.0) -> None:
         """Pulse the filter reset bit for ``delay`` seconds.

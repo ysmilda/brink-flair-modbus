@@ -55,6 +55,7 @@ from .flow_limits import (
 from .metadata import attach_metadata
 from .subsystems import (
     DeviceInformation,
+    ExtensionModule,
     Measurements,
     Settings,
     Status,
@@ -76,6 +77,7 @@ __all__ = [
     "DeviceInformation",
     "DigitalInputFunction",
     "EBusPowerStatus",
+    "ExtensionModule",
     "ExternalHeaterMode",
     "FanControlType",
     "FanFunction",

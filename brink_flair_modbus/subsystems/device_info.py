@@ -1,8 +1,9 @@
 """Identity registers of a Brink Flair unit (input registers).
 
 Besides the device type, the identity block carries the software and hardware
-versions of the base, user-interface (UIF) and extension (UWA2-E) modules, the
-serial number, and their dipswitch values.
+versions of the base and user-interface (UIF) modules, the serial number, and
+their dipswitch values. The optional extension (UWA2-E) module is covered by
+``ExtensionModule``.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from ..data_model import BrinkComponent, integer
 from ..device_types import model_name_for_device_type
+from ..versions import _hardware_version, _minor_fix, _type_version
 
 if TYPE_CHECKING:
     from modbus_connection._protocol import ModbusUnit
@@ -24,29 +26,7 @@ _IDENTITY_RANGES = (
     (4400, 4405),  # user-interface module versions, type and dipswitch
     (4410, 4415),  # UIF language-data and software versions
     (4420, 4421),  # UIF local switch and button
-    (4500, 4505),  # extension module (UWA2-E) versions, type and dipswitch
 )
-
-
-def _type_version(word: int | None) -> str:
-    """Decode a ``Type and major`` word into its two ASCII characters (S1)."""
-    if word is None:
-        return "unknown"
-    return "".join(chr(byte) for byte in (word >> 8, word & 0xFF))
-
-
-def _hardware_version(word: int | None) -> str:
-    """Decode a hardware version word (high byte major, low byte minor)."""
-    if word is None:
-        return "unknown"
-    return f"H{(word >> 8) & 0xFF}.{word & 0xFF}"
-
-
-def _minor_fix(word: int | None) -> str | None:
-    """Decode a minor/fix word (high byte minor, low byte fix) as ``01.03``."""
-    if word is None:
-        return None
-    return f"{(word >> 8) & 0xFF:02d}.{word & 0xFF:02d}"
 
 
 def _bcd_digits(*words: int | None) -> tuple[str, bool]:
@@ -226,36 +206,6 @@ class DeviceInformation(BrinkComponent):
         signed=False,
         description="The UIF local button value",
     )
-    _ext_sw_type = integer(
-        4500,
-        signed=False,
-        description="Extension module software type and major version",
-    )
-    _ext_sw_minor_fix = integer(
-        4501,
-        signed=False,
-        description="Extension module software minor and fix version",
-    )
-    _ext_sw_build = integer(
-        4502,
-        signed=False,
-        description="Extension module software build number",
-    )
-    _ext_hw_version = integer(
-        4503,
-        signed=False,
-        description="Extension module hardware version (major, minor)",
-    )
-    extension_device_type = integer(
-        4504,
-        signed=False,
-        description="The extension module device type",
-    )
-    extension_dipswitch = integer(
-        4505,
-        signed=False,
-        description="The extension module dipswitch value",
-    )
 
     @property
     def device_type(self) -> int | None:
@@ -316,22 +266,6 @@ class DeviceInformation(BrinkComponent):
     def uif_hardware_version(self) -> str:
         """Return the UIF module hardware version, e.g. ``H1.1``."""
         return _hardware_version(self._uif_hw_version)
-
-    @property
-    def extension_software_version(self) -> str:
-        """Return the extension module software version, e.g. ``S1.01.02.0001``."""
-        type_version = _type_version(self._ext_sw_type)
-        minor_fix = _minor_fix(self._ext_sw_minor_fix)
-        if minor_fix is None:
-            return type_version
-        if self._ext_sw_build is None:
-            return f"{type_version}.{minor_fix}"
-        return f"{type_version}.{minor_fix}.{self._ext_sw_build:04d}"
-
-    @property
-    def extension_hardware_version(self) -> str:
-        """Return the extension module hardware version, e.g. ``H1.1``."""
-        return _hardware_version(self._ext_hw_version)
 
     @property
     def manufacturer(self) -> str:

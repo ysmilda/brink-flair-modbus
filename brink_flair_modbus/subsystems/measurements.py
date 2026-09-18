@@ -10,7 +10,6 @@ from __future__ import annotations
 from ..data_model import (
     NAN_INT16,
     BrinkComponent,
-    boolean,
     gauge,
     integer,
     uint32,
@@ -19,6 +18,8 @@ from ..data_model import (
 # The Modbus installation regulations (UWA2-B/UWA2-E, 614882) document the
 # input map 4000-4544 as readable in full, so spans that only cover documented
 # registers are read as one block: fewer requests per poll at no extra risk.
+# The extension module's own registers (4520-4544) live in ExtensionModule,
+# which is read apart from this pooled update.
 _MEASUREMENT_RANGES = (
     (4023, 4024),  # supply and exhaust static pressure
     (4031, 4037),  # supply airflow, fan speed and climate
@@ -30,8 +31,6 @@ _MEASUREMENT_RANGES = (
     (4110, 4111),  # current time and date
     (4113, 4114),  # operating time in hours (32-bit)
     (4115, 4119),  # filter counters and total flow
-    (4520, 4524),  # extension module NTC, contacts and analogue inputs
-    (4541, 4544),  # extension module relay and analogue outputs
 )
 
 
@@ -223,63 +222,6 @@ class Measurements(BrinkComponent):
         4118,
         unit="m³/h",
         description="Total volume channeled through the unit",
-    )
-    extension_temperature = gauge(
-        4520,
-        0.1,
-        signed=True,
-        nan=NAN_INT16,
-        unit="°C",
-        digits=1,
-        description="Temperature of the extension module NTC",
-    )
-    extension_contact_1 = boolean(
-        4521,
-        description="Whether extension contact 1 is closed",
-    )
-    extension_contact_2 = boolean(
-        4522,
-        description="Whether extension contact 2 is closed",
-    )
-    extension_analogue_input_1 = gauge(
-        4523,
-        0.1,
-        signed=False,
-        unit="V",
-        digits=1,
-        description="Voltage at extension analogue input 1",
-    )
-    extension_analogue_input_2 = gauge(
-        4524,
-        0.1,
-        signed=False,
-        unit="V",
-        digits=1,
-        description="Voltage at extension analogue input 2",
-    )
-    extension_relay_1 = boolean(
-        4541,
-        description="Whether extension relay output 1 is energized (24V)",
-    )
-    extension_relay_2 = boolean(
-        4542,
-        description="Whether extension relay output 2 is energized (24V)",
-    )
-    extension_analogue_output_1 = gauge(
-        4543,
-        0.1,
-        signed=False,
-        unit="V",
-        digits=1,
-        description="Voltage at extension analogue output 1",
-    )
-    extension_analogue_output_2 = gauge(
-        4544,
-        0.1,
-        signed=False,
-        unit="V",
-        digits=1,
-        description="Voltage at extension analogue output 2",
     )
 
     @property

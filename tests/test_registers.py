@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from modbus_connection import ExceptionCode, ModbusExceptionError
 from modbus_connection.mock import MockModbusUnit, WriteEvent
 
 from brink_flair_modbus import (
@@ -55,10 +56,6 @@ async def test_device_information_identity_registers(unit: MockModbusUnit) -> No
     unit.input[4401] = 0x0103
     unit.input[4402] = 1
     unit.input[4403] = 0x0200
-    unit.input[4500] = 0x5331
-    unit.input[4501] = 0x0103
-    unit.input[4502] = 1
-    unit.input[4503] = 0x0100
 
     device = BrinkFlair(unit)
     await device.async_update()
@@ -72,8 +69,71 @@ async def test_device_information_identity_registers(unit: MockModbusUnit) -> No
     assert info.serial_number_ascii == "1234567890AZ"
     assert info.uif_software_version == "S1.01.03.0001"
     assert info.uif_hardware_version == "H2.0"
-    assert info.extension_software_version == "S1.01.03.0001"
-    assert info.extension_hardware_version == "H1.0"
+
+
+async def test_extension_module_identity(unit: MockModbusUnit) -> None:
+    unit.input[4500] = 0x5331
+    unit.input[4501] = 0x0103
+    unit.input[4502] = 1
+    unit.input[4503] = 0x0100
+    unit.input[4504] = 24
+    unit.input[4505] = 3
+
+    device = BrinkFlair(unit)
+    await device.async_update()
+
+    assert device.extension.available is True
+    assert device.extension_available is True
+    assert device.extension.device_type == 24
+    assert device.extension.dipswitch == 3
+    assert device.extension.software_version == "S1.01.03.0001"
+    assert device.extension.hardware_version == "H1.0"
+
+
+async def test_extension_module_measurements(unit: MockModbusUnit) -> None:
+    unit.input[4520] = 245  # extension NTC 24.5 C
+    unit.input[4521] = 1  # extension contact 1 closed
+    unit.input[4522] = 0
+    unit.input[4523] = 55  # extension analogue input 1, 5.5 V
+    unit.input[4524] = 68
+    unit.input[4541] = 1  # extension relay 1 energized
+    unit.input[4542] = 0
+    unit.input[4543] = 100  # extension analogue output 1, 10.0 V
+    unit.input[4544] = 150
+
+    device = BrinkFlair(unit)
+    await device.async_update()
+
+    extension = device.extension
+    assert extension.temperature == 24.5
+    assert extension.contact_1 is True
+    assert extension.contact_2 is False
+    assert extension.analogue_input_1 == 5.5
+    assert extension.analogue_input_2 == 6.8
+    assert extension.relay_1 is True
+    assert extension.relay_2 is False
+    assert extension.analogue_output_1 == 10.0
+    assert extension.analogue_output_2 == 15.0
+
+
+async def test_extension_module_unavailable(unit: MockModbusUnit) -> None:
+    unit.input[4004] = 24
+    unit.input[4036] = 250  # supply temperature, raw value x10
+    unit.fail_read(
+        4500,
+        ModbusExceptionError(ExceptionCode.ILLEGAL_DATA_ADDRESS),
+        register_type="input",
+    )
+
+    device = BrinkFlair(unit)
+    await device.async_update()
+
+    assert device.extension.available is False
+    assert device.extension_available is False
+    assert device.extension.device_type is None
+    assert device.extension.temperature is None
+    assert device.info.device_type == 24
+    assert device.measurements.supply_temperature == 25.0
 
 
 async def test_serial_number_unread_returns_none(unit: MockModbusUnit) -> None:
@@ -138,12 +198,6 @@ async def test_measurement_registers(unit: MockModbusUnit) -> None:
     unit.input[4114] = 0x86A0  # operating time low word (0x186A0 = 100000 h)
     unit.input[4118] = 0x1234  # total flow high word
     unit.input[4119] = 0x5678  # total flow low word
-    unit.input[4520] = 245  # extension NTC 24.5 C
-    unit.input[4521] = 1  # extension contact 1 closed
-    unit.input[4522] = 0
-    unit.input[4523] = 55  # extension analogue input 1, 5.5 V
-    unit.input[4541] = 1  # extension relay 1 energized
-    unit.input[4543] = 100  # extension analogue output 1, 10.0 V
 
     device = BrinkFlair(unit)
     await device.async_update()
@@ -161,12 +215,6 @@ async def test_measurement_registers(unit: MockModbusUnit) -> None:
     assert measurements.current_date == "21-07"
     assert measurements.current_operating_time == 100000
     assert measurements.total_flow == 0x12345678
-    assert measurements.extension_temperature == 24.5
-    assert measurements.extension_contact_1 is True
-    assert measurements.extension_contact_2 is False
-    assert measurements.extension_analogue_input_1 == 5.5
-    assert measurements.extension_relay_1 is True
-    assert measurements.extension_analogue_output_1 == 10.0
 
 
 async def test_settings_holding_registers(unit: MockModbusUnit) -> None:
