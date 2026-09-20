@@ -20,7 +20,7 @@ def test_model_name_for_known_device_type() -> None:
 
 
 def test_model_for_unmapped_device_type_falls_back() -> None:
-    assert model_for_device_type(321) == 200
+    assert model_for_device_type(321) == 300
 
 
 def test_model_for_unread_device_type_is_none() -> None:
@@ -28,7 +28,7 @@ def test_model_for_unread_device_type_is_none() -> None:
 
 
 def test_model_name_falls_back_to_default() -> None:
-    assert model_name_for_device_type(321) == "Brink Flair 200"
+    assert model_name_for_device_type(321) == "Brink Flair 300"
 
 
 def test_model_name_of_unread_device_type() -> None:

@@ -38,7 +38,7 @@ async def test_update_reads_subsystems(unit: MockModbusUnit) -> None:
     assert device.measurements.supply_temperature == 25.0
     assert device.measurements.supply_relative_humidity == 50
     assert device.flow_limits == FlowLimits(300, 280)
-    assert device.filter_used_days == 2.0
+    assert device.measurements.filter_used_days == 2.0
     assert device.exchange_filter_in == 198.0
 
 
@@ -53,5 +53,5 @@ async def test_unknown_device_type_falls_back_to_default(unit: MockModbusUnit) -
     unit.input[4004] = 321
     device = BrinkFlair(unit)
     await device.async_update()
-    assert device.info.model == "Brink Flair 200"
-    assert device.flow_limits == FlowLimits(200, 200)
+    assert device.info.model == "Brink Flair 300"
+    assert device.flow_limits == FlowLimits(300, 280)

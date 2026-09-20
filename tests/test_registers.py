@@ -136,6 +136,49 @@ async def test_extension_module_unavailable(unit: MockModbusUnit) -> None:
     assert device.measurements.supply_temperature == 25.0
 
 
+async def test_extension_module_probe_unavailable(unit: MockModbusUnit) -> None:
+    unit.fail_read(
+        4500,
+        ModbusExceptionError(ExceptionCode.ILLEGAL_DATA_ADDRESS),
+        register_type="input",
+    )
+
+    device = BrinkFlair(unit)
+    await device.extension.async_update()
+
+    assert device.extension.available is False
+    assert device.extension.software_version == "unknown"
+
+
+async def test_extension_module_recheck(unit: MockModbusUnit) -> None:
+    unit.input[4504] = 24
+    device = BrinkFlair(unit)
+
+    await device.extension.async_update()
+    assert device.extension_available is True
+
+    unit.fail_read(
+        4500,
+        ModbusExceptionError(ExceptionCode.ILLEGAL_DATA_ADDRESS),
+        register_type="input",
+    )
+    await device.async_recheck_extension()
+    assert device.extension_available is False
+    assert device.extension.device_type is None
+
+    unit.fail_read(4500, None, register_type="input")
+    unit.input[4500] = 0x5331
+    unit.input[4501] = 0x0103
+    unit.input[4502] = 1
+    unit.input[4503] = 0x0100
+    unit.input[4504] = 24
+    unit.input[4505] = 3
+    await device.async_recheck_extension()
+    assert device.extension_available is True
+    assert device.extension.device_type == 24
+    assert device.extension.software_version == "S1.01.03.0001"
+
+
 async def test_serial_number_unread_returns_none(unit: MockModbusUnit) -> None:
     device = BrinkFlair(unit)
     await device.async_update()
@@ -215,6 +258,18 @@ async def test_measurement_registers(unit: MockModbusUnit) -> None:
     assert measurements.current_date == "21-07"
     assert measurements.current_operating_time == 100000
     assert measurements.total_flow == 0x12345678
+
+
+async def test_dwelling_temperature_sensor_unplugged(unit: MockModbusUnit) -> None:
+    device = BrinkFlair(unit)
+
+    unit.input[4082] = 9999  # 0x270F: dwelling NTC reads this while unplugged
+    await device.async_update()
+    assert device.measurements.dwelling_temperature is None
+
+    unit.input[4082] = 0x7FFF  # NAN_INT16: shared "absent sensor" sentinel
+    await device.async_update()
+    assert device.measurements.dwelling_temperature is None
 
 
 async def test_settings_holding_registers(unit: MockModbusUnit) -> None:

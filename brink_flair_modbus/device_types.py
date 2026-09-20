@@ -25,7 +25,7 @@ _DEVICE_TYPES: dict[int, int] = {
 
 #: Model used when the code is unknown. The Flair 300, being the most common
 #: unit, is the least-surprising default.
-DEFAULT_MODEL = 200
+DEFAULT_MODEL = 300
 
 
 def is_known_device_type(device_type: int | None) -> bool:

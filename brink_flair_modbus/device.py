@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from modbus_connection import ModbusError, ModbusExceptionError
+from modbus_connection import ModbusError
 from modbus_connection.model import Component, ComponentGroup
 
 from .device_types import model_name_for_device_type
@@ -78,6 +78,15 @@ class BrinkFlair:
         """Whether the optional extension module is installed and readable."""
         return self.extension.available
 
+    async def async_recheck_extension(self) -> None:
+        """Re-probe the optional extension module on this device instance.
+
+        A unit may have the module hot-plugged after an initial update marked
+        it unavailable; this reads the module again instead of recreating the
+        device, marking it available when it now answers.
+        """
+        await self.extension.async_recheck()
+
     @property
     def flow_limits(self) -> FlowLimits:
         """Return the airflow envelope for the unit's reported model."""
@@ -86,14 +95,9 @@ class BrinkFlair:
         return flow_limits_for(self.info.device_type)
 
     @property
-    def filter_used_days(self) -> float | None:
-        """Return the elapsed filter lifetime in days."""
-        return self.measurements.filter_used_days
-
-    @property
     def exchange_filter_in(self) -> float | None:
         """Return how many days remain until the filter is due."""
-        used_days = self.filter_used_days
+        used_days = self.measurements.filter_used_days
         change_days = self.settings.filter_change_days
         if used_days is None or change_days is None:
             return None
@@ -102,16 +106,12 @@ class BrinkFlair:
     async def async_update(self) -> None:
         """Refresh all active subsystems in pooled Modbus reads.
 
-        The optional extension module is read separately: units without it
-        refuse the extension registers, which then mark it unavailable instead
-        of failing the update.
+        The optional extension module is read separately: a unit without it
+        refuses the extension registers, which ``ExtensionModule`` records as
+        unavailable instead of failing the update.
         """
         await self._group.async_update()
-        if self.extension.available:
-            try:
-                await self.extension.async_update()
-            except ModbusExceptionError:
-                self.extension.mark_unavailable()
+        await self.extension.async_update()
 
     async def async_reset_filter(self, delay: float = 2.0) -> None:
         """Pulse the filter reset bit for ``delay`` seconds.

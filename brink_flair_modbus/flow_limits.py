@@ -54,7 +54,7 @@ def flow_limits_for(device_type: int | None) -> FlowLimits:
     """Return the airflow envelope for a device-type code.
 
     The code reported by register 4004 is a device type, not the model number.
-    Unknown device types will fall back on the lowest model numbers flow limits.
+    Unknown device types fall back on the default (Flair 300) envelope.
     """
     model = model_for_device_type(device_type)
     if model is None:

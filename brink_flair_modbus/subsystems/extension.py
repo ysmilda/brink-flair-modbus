@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from modbus_connection import ModbusExceptionError, ModbusProtocolError
+
 from ..data_model import NAN_INT16, BrinkComponent, boolean, gauge, integer
 from ..versions import _hardware_version, _minor_fix, _type_version
 
@@ -126,6 +128,34 @@ class ExtensionModule(BrinkComponent):
     def available(self) -> bool:
         """Whether the extension module answered its registers."""
         return self._available
+
+    async def async_recheck(self, *, notify: bool = True) -> None:
+        """Re-probe the module after a refusal, e.g. following a hot-plug.
+
+        Resets a previously recorded refusal and reads the module again on the
+        existing instance: when the module is now present its values are
+        repopulated, and when it is still refused it is marked unavailable
+        again. This lets a caller retry installation without rebuilding the
+        component (or the device).
+        """
+        if not self._available:
+            self._available = True
+        await self.async_update(notify=notify)
+
+    async def async_update(self, *, notify: bool = True) -> None:
+        """Read the module, silently marking it unavailable when refused.
+
+        Units without the module refuse these registers either with a Modbus
+        exception response or by replying without any data (which transports
+        report as a protocol error); either refusal is recorded instead of
+        raised, so probing the module never fails the caller.
+        """
+        if not self._available:
+            return
+        try:
+            await super().async_update(notify=notify)
+        except (ModbusExceptionError, ModbusProtocolError):
+            self.mark_unavailable()
 
     @property
     def software_version(self) -> str:

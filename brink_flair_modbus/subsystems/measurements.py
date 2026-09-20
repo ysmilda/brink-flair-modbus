@@ -15,6 +15,8 @@ from ..data_model import (
     uint32,
 )
 
+_ABSENT_DWELLING = 0x270F  # 9999: the dwelling NTC reads this while unplugged
+
 # The Modbus installation regulations (UWA2-B/UWA2-E, 614882) document the
 # input map 4000-4544 as readable in full, so spans that only cover documented
 # registers are read as one block: fewer requests per poll at no extra risk.
@@ -180,7 +182,7 @@ class Measurements(BrinkComponent):
         4082,
         0.1,
         signed=True,
-        nan=NAN_INT16,
+        nan=(NAN_INT16, _ABSENT_DWELLING),
         unit="°C",
         digits=1,
         description="Dwelling temperature (Flair 450/600)",

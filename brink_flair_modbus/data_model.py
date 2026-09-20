@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from enum import IntEnum
 from typing import Any
 
@@ -114,7 +115,7 @@ def integer(
     address: int,
     *,
     signed: bool = True,
-    nan: int | None = None,
+    nan: int | Iterable[int] | None = None,
     stride: int = 0,
     writable: bool | WriteValidator = False,
     unit: str | None = None,
@@ -150,7 +151,7 @@ def gauge(
     scale: float,
     *,
     signed: bool = True,
-    nan: int | None = None,
+    nan: int | Iterable[int] | None = None,
     stride: int = 0,
     writable: bool | WriteValidator = False,
     unit: str | None = None,
@@ -270,17 +271,3 @@ def bit(
 
 class BrinkComponent(Component):
     """A Brink Flair sub-system: typed fields over readable register ranges."""
-
-    def metadata_for(self, field: str) -> DatapointMetadata | None:
-        """Return neutral metadata for a declared field."""
-        descriptor = type(self).declared_fields.get(field)
-        if descriptor is None:
-            return None
-        return getattr(descriptor, "brink_metadata", None)
-
-    def require_metadata_for(self, field: str) -> DatapointMetadata:
-        """Return metadata for a field or raise."""
-        metadata = self.metadata_for(field)
-        if metadata is None:
-            raise AttributeError(f"unknown or untyped Brink field {field!r}")
-        return metadata
