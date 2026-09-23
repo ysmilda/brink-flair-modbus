@@ -37,7 +37,7 @@ def _writes(unit: MockModbusUnit) -> list[WriteEvent]:
 
 
 async def test_device_information_identity_registers(unit: MockModbusUnit) -> None:
-    unit.input[4000] = 0x5331  # ASCII 'S', major 1
+    unit.input[4000] = 0x5301  # ASCII 'S', major 1
     unit.input[4001] = 0x0103  # minor 1, fix 3
     unit.input[4002] = 1  # build 0001
     unit.input[4003] = 0x0101  # hardware major 1, minor 1
@@ -52,7 +52,7 @@ async def test_device_information_identity_registers(unit: MockModbusUnit) -> No
     unit.input[4016] = 0x3738  # "78"
     unit.input[4017] = 0x3930  # "90"
     unit.input[4018] = 0x415A  # "AZ"
-    unit.input[4400] = 0x5331
+    unit.input[4400] = 0x5301
     unit.input[4401] = 0x0103
     unit.input[4402] = 1
     unit.input[4403] = 0x0200
@@ -72,7 +72,7 @@ async def test_device_information_identity_registers(unit: MockModbusUnit) -> No
 
 
 async def test_extension_module_identity(unit: MockModbusUnit) -> None:
-    unit.input[4500] = 0x5331
+    unit.input[4500] = 0x5301
     unit.input[4501] = 0x0103
     unit.input[4502] = 1
     unit.input[4503] = 0x0100
@@ -167,7 +167,7 @@ async def test_extension_module_recheck(unit: MockModbusUnit) -> None:
     assert device.extension.device_type is None
 
     unit.fail_read(4500, None, register_type="input")
-    unit.input[4500] = 0x5331
+    unit.input[4500] = 0x5301
     unit.input[4501] = 0x0103
     unit.input[4502] = 1
     unit.input[4503] = 0x0100

@@ -7,7 +7,7 @@ def _type_version(word: int | None) -> str:
     """Decode a ``Type and major`` word into its two ASCII characters (S1)."""
     if word is None:
         return "unknown"
-    return "".join(chr(byte) for byte in (word >> 8, word & 0xFF))
+    return f"{chr(word >> 8)}{word & 0xFF}"
 
 
 def _hardware_version(word: int | None) -> str:
