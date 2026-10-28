@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import pytest
 from modbus_connection.mock import MockModbusUnit, WriteEvent
 
-from brink_flair_modbus import BrinkFlair, BrinkValueValidationError, VentilationLevel
+from brink_flair_modbus import (
+    BrinkFlair,
+    BrinkValueValidationError,
+    BypassMode,
+    BypassOverrideBlockedError,
+    StandbyCommand,
+    VentilationLevel,
+)
 
 
 def _writes(unit: MockModbusUnit) -> list[WriteEvent]:
@@ -64,3 +72,50 @@ async def test_set_standby(unit: MockModbusUnit) -> None:
     await device.async_set_standby(True)
 
     assert any(event.address == 8003 and event.values == [1] for event in writes)
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [(0, False), (int(StandbyCommand.STANDBY), True)],
+)
+async def test_standby_reads_back(
+    unit: MockModbusUnit, raw: int, expected: bool
+) -> None:
+    unit.holding[8003] = raw
+
+    device = BrinkFlair(unit)
+    await device.async_update()
+
+    assert device.standby is expected
+
+
+async def test_bypass_open_blocked_at_high_supply(unit: MockModbusUnit) -> None:
+    unit.input[4032] = 250  # supply volume
+    writes = _writes(unit)
+
+    device = BrinkFlair(unit)
+    await device.async_update()
+    with pytest.raises(BypassOverrideBlockedError) as err:
+        await device.async_set_bypass_mode(BypassMode.OPEN)
+
+    assert err.value.supply_volume == 250
+    assert not any(event.address == 6100 for event in writes)
+
+
+@pytest.mark.parametrize(
+    ("supply", "mode"),
+    [(150, BypassMode.OPEN), (250, BypassMode.AUTO), (250, BypassMode.CLOSED)],
+)
+async def test_bypass_mode_written(
+    unit: MockModbusUnit, supply: int, mode: BypassMode
+) -> None:
+    unit.input[4032] = supply
+    writes = _writes(unit)
+
+    device = BrinkFlair(unit)
+    await device.async_update()
+    await device.async_set_bypass_mode(mode)
+
+    assert any(
+        event.address == 6100 and event.values == [int(mode)] for event in writes
+    )

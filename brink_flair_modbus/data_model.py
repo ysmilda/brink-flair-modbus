@@ -271,3 +271,9 @@ def bit(
 
 class BrinkComponent(Component):
     """A Brink Flair sub-system: typed fields over readable register ranges."""
+
+    @classmethod
+    def metadata(cls, name: str) -> DatapointMetadata:
+        """Return the metadata of the field ``name``."""
+        metadata: DatapointMetadata = getattr(cls, name).brink_metadata
+        return metadata

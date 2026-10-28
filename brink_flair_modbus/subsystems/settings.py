@@ -303,6 +303,7 @@ class Settings(BrinkComponent):
         6120,
         signed=True,
         writable=True,
+        unit="d",
         min_value=0,
         max_value=365,
         description="Days until the filter warning should appear",
@@ -665,7 +666,7 @@ class Settings(BrinkComponent):
         8003,
         StandbyCommand,
         writable=True,
-        description="Ask the unit into or out of standby",
+        description="Standby command; reads back the actual standby state",
     )
     reset_filter = bit(
         8010,

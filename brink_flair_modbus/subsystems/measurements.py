@@ -213,16 +213,18 @@ class Measurements(BrinkComponent):
     filter_used_hours = integer(
         4115,
         signed=False,
+        unit="h",
         description="Hours of operation counted by the filter counter",
     )
+    # The regulations label these totals "m3/h", but they accumulate volume.
     filter_used_volume = uint32(
         4116,
-        unit="m³/h",
+        unit="m³",
         description="Total volume channeled through the filter",
     )
     total_flow = uint32(
         4118,
-        unit="m³/h",
+        unit="m³",
         description="Total volume channeled through the unit",
     )
 

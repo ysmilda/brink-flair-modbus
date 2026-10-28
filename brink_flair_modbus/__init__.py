@@ -8,7 +8,7 @@ pools reads into a small number of Modbus requests.
 from __future__ import annotations
 
 from .data_model import NAN_INT16, BrinkComponent
-from .device import BrinkFlair, BrinkProbe
+from .device import BYPASS_OVERRIDE_MAX_SUPPLY, BrinkFlair, BrinkProbe
 from .device_types import (
     is_known_device_type,
     model_for_device_type,
@@ -44,7 +44,7 @@ from .enums import (
     VentilationLevel,
     VentilationMode,
 )
-from .exceptions import BrinkValueValidationError
+from .exceptions import BrinkValueValidationError, BypassOverrideBlockedError
 from .flow_limits import (
     DEFAULT_FLOW_LIMITS,
     SUPPORTED_MODELS,
@@ -62,6 +62,7 @@ from .subsystems import (
 )
 
 __all__ = [
+    "BYPASS_OVERRIDE_MAX_SUPPLY",
     "DEFAULT_FLOW_LIMITS",
     "NAN_INT16",
     "SUPPORTED_MODELS",
@@ -70,6 +71,7 @@ __all__ = [
     "BrinkProbe",
     "BrinkValueValidationError",
     "BypassMode",
+    "BypassOverrideBlockedError",
     "BypassStatus",
     "Co2SensorStatus",
     "ControlMode",

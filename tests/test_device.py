@@ -5,7 +5,13 @@ from __future__ import annotations
 from modbus_connection import ModbusError
 from modbus_connection.mock import MockModbusUnit
 
-from brink_flair_modbus import BrinkFlair, BrinkProbe, FlowLimits
+from brink_flair_modbus import (
+    BrinkFlair,
+    BrinkProbe,
+    FlowLimits,
+    Measurements,
+    Settings,
+)
 
 
 async def test_probe_known_device_type(unit: MockModbusUnit) -> None:
@@ -55,3 +61,12 @@ async def test_unknown_device_type_falls_back_to_default(unit: MockModbusUnit) -
     await device.async_update()
     assert device.info.model == "Brink Flair 300"
     assert device.flow_limits == FlowLimits(300, 280)
+
+
+def test_field_metadata() -> None:
+    flow = Settings.metadata("flow_1").number
+    assert flow is not None
+    assert (flow.min_value, flow.unit) == (50, "m³/h")
+    total = Measurements.metadata("total_flow").number
+    assert total is not None
+    assert total.unit == "m³"

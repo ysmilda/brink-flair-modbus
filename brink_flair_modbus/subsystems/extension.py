@@ -16,7 +16,7 @@ from ..data_model import NAN_INT16, BrinkComponent, boolean, gauge, integer
 from ..versions import _hardware_version, _minor_fix, _type_version
 
 if TYPE_CHECKING:
-    from modbus_connection._protocol import ModbusUnit
+    from modbus_connection import ModbusUnit
 
 _EXTENSION_RANGES = (
     (4500, 4505),  # extension module versions, type and dipswitch

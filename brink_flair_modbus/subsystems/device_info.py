@@ -15,7 +15,7 @@ from ..device_types import model_name_for_device_type
 from ..versions import _hardware_version, _minor_fix, _type_version
 
 if TYPE_CHECKING:
-    from modbus_connection._protocol import ModbusUnit
+    from modbus_connection import ModbusUnit
 
 # The input map 4000-4544 is documented as readable in full (Modbus
 # installation regulations, UWA2-B/UWA2-E 614882), so the documented identity

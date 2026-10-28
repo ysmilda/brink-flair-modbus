@@ -10,7 +10,8 @@ from modbus_connection import ModbusError
 from modbus_connection.model import Component, ComponentGroup
 
 from .device_types import model_name_for_device_type
-from .enums import StandbyCommand
+from .enums import BypassMode, StandbyCommand
+from .exceptions import BypassOverrideBlockedError
 from .flow_limits import FlowLimits, flow_limits_for, flow_limits_for_model
 from .subsystems import (
     DeviceInformation,
@@ -21,7 +22,11 @@ from .subsystems import (
 )
 
 if TYPE_CHECKING:
-    from modbus_connection._protocol import ModbusUnit
+    from modbus_connection import ModbusUnit
+
+#: Supply flow (m³/h) above which forcing the bypass open is refused: the open
+#: bypass skips heat recovery, so a high flow would draw cold air straight in.
+BYPASS_OVERRIDE_MAX_SUPPLY = 200
 
 
 @dataclass(frozen=True)
@@ -129,15 +134,40 @@ class BrinkFlair:
         finally:
             self._reset_filter_pending = False
 
+    @property
+    def standby(self) -> bool | None:
+        """Return whether the unit is in standby.
+
+        Register 8003 reads back the actual standby state (``0`` or ``1``),
+        including changes made through other interfaces.
+        """
+        state = self.settings.standby
+        if state is None:
+            return None
+        return state == StandbyCommand.STANDBY
+
     async def async_set_standby(self, enabled: bool) -> None:
         """Place the unit in standby, or back into normal operation.
 
-        Register 8003 is written with ``1`` (standby) or ``2`` (normal), the
-        only semantics the reference config relies on; the unit does not
-        report the command back, so state is tracked optimistically.
+        Register 8003 is written with ``1`` (standby) or ``2`` (normal).
         """
         command = StandbyCommand.STANDBY if enabled else StandbyCommand.NORMAL
         await self.settings.write("standby", command)
+
+    async def async_set_bypass_mode(self, mode: BypassMode) -> None:
+        """Select the bypass mode, refusing to force it open at a high flow.
+
+        Raises ``BypassOverrideBlockedError`` when ``mode`` is ``OPEN`` while
+        the last read supply flow exceeds ``BYPASS_OVERRIDE_MAX_SUPPLY``.
+        """
+        supply_volume = self.measurements.supply_volume
+        if (
+            mode is BypassMode.OPEN
+            and supply_volume is not None
+            and supply_volume > BYPASS_OVERRIDE_MAX_SUPPLY
+        ):
+            raise BypassOverrideBlockedError(supply_volume)
+        await self.settings.write("bypass_mode", mode)
 
     async def async_reset_appliance(self) -> None:
         """Pulse the appliance reset register to reboot the unit.
