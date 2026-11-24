@@ -4,7 +4,7 @@ from modbus_connection import IllegalDataAddressError
 from modbus_connection.mock import MockModbusUnit
 import pytest
 
-from flair_modbus import (
+from brink_flair_modbus import (
     BYPASS_TEMP_INDOOR,
     FLOW_PRESETS,
     UNKNOWN_MODEL,
@@ -14,9 +14,9 @@ from flair_modbus import (
     VentilationLevel,
     member_of,
 )
-from flair_modbus.device import _bcd, _temperature, _u32
-from flair_modbus.models import FLAIR_300
-from flair_modbus.registers import signed
+from brink_flair_modbus.device import _bcd, _temperature, _u32
+from brink_flair_modbus.models import FLAIR_300
+from brink_flair_modbus.registers import signed
 
 from .conftest import SERIAL
 

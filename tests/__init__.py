@@ -1,1 +1,1 @@
-"""Tests for flair_modbus."""
+"""Tests for brink_flair_modbus."""

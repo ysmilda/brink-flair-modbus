@@ -1,4 +1,4 @@
-"""Fixtures for the flair_modbus tests."""
+"""Fixtures for the brink_flair_modbus tests."""
 
 from typing import Any
 

@@ -1,4 +1,4 @@
-# flair-modbus
+# brink-flair-modbus
 
 Read and control a Brink Flair heat recovery ventilation unit over Modbus.
 
@@ -12,7 +12,7 @@ it.
 ```python
 from modbus_connection import ModbusTcpParams
 from modbus_connection.tmodbus import ModbusConnection
-from flair_modbus import FlairDevice, VentilationLevel
+from brink_flair_modbus import FlairDevice, VentilationLevel
 
 connection = ModbusConnection(ModbusTcpParams(host="192.0.2.10", port=502))
 device = FlairDevice(connection.for_unit(20))
