@@ -3,7 +3,7 @@
 Each entry names the FlairState field it fills, the holding register it lives
 in, how to decode the register value into that field, and how to encode a
 value back into a register for writing. The device reads and writes through
-this table, and the entities describe their settings with it, so each register
+this table, and callers can describe their settings with it, so each register
 is written down once.
 """
 
@@ -27,8 +27,12 @@ def _integer(regs: Sequence[int]) -> int:
     return regs[0]
 
 
-def _presets(regs: Sequence[int]) -> tuple[int, ...]:
-    return tuple(regs)
+type FlowPresets = tuple[int, int, int, int]
+"""The airflow in m3/h for ventilation levels 0 to 3."""
+
+
+def _presets(regs: Sequence[int]) -> FlowPresets:
+    return (regs[0], regs[1], regs[2], regs[3])
 
 
 def _tenths(regs: Sequence[int]) -> float:
@@ -51,7 +55,7 @@ def _signed_percent(regs: Sequence[int]) -> int:
     return signed(regs[0])
 
 
-def _percent_value(value: float) -> int:
+def _percent_value(value: int) -> int:
     return int(value) & 0xFFFF
 
 
@@ -74,7 +78,7 @@ class Setting[V]:
     """Whether not every unit or firmware serves it."""
 
 
-FLOW_PRESETS: Setting[tuple[int, ...]] = Setting(
+FLOW_PRESETS: Setting[FlowPresets] = Setting(
     field="flow_presets",
     address=r.HR_FLOW_PRESETS,
     count=4,
@@ -105,7 +109,7 @@ BYPASS_HYSTERESIS: Setting[float] = Setting(
     decode=_tenths,
     encode=_tenths_value,
 )
-FILTER_INTERVAL: Setting[float] = Setting(
+FILTER_INTERVAL: Setting[int] = Setting(
     field="filter_interval_days",
     address=r.HR_FILTER_DAYS,
     decode=_integer,
@@ -119,14 +123,14 @@ IMBALANCE_ALLOWED: Setting[bool] = Setting(
     encode=_flag_value,
     optional=True,
 )
-SUPPLY_IMBALANCE: Setting[float] = Setting(
+SUPPLY_IMBALANCE: Setting[int] = Setting(
     field="supply_imbalance",
     address=r.HR_SUPPLY_IMBALANCE,
     decode=_signed_percent,
     encode=_percent_value,
     optional=True,
 )
-EXHAUST_IMBALANCE: Setting[float] = Setting(
+EXHAUST_IMBALANCE: Setting[int] = Setting(
     field="exhaust_imbalance",
     address=r.HR_EXHAUST_IMBALANCE,
     decode=_signed_percent,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 import logging
 from typing import Any, Literal, cast
@@ -9,9 +10,9 @@ from typing import Any, Literal, cast
 from modbus_connection import IllegalDataAddressError, ModbusUnit
 
 from . import registers as r
-from .models import UNKNOWN_MODEL, FlairModel, model_for_appliance_type
+from .models import APPLIANCE_TYPES, UNKNOWN_MODEL, FlairModel
 from .registers import member_of, signed as _signed
-from .settings import FLOW_PRESETS, SETTING_GROUPS, Setting, span
+from .settings import FLOW_PRESETS, SETTING_GROUPS, FlowPresets, Setting, span
 
 type RegisterKind = Literal["input", "holding"]
 
@@ -49,9 +50,83 @@ class FlairIdentity:
     """None when the appliance type is not in the model table."""
 
     @property
+    def model_or_unknown(self) -> FlairModel:
+        """The model, or UNKNOWN_MODEL when the type is not in the model table."""
+        return self.model or UNKNOWN_MODEL
+
+    @property
     def model_name(self) -> str:
         """The model name, or a generic name for an unknown type."""
-        return (self.model or UNKNOWN_MODEL).name
+        return self.model_or_unknown.name
+
+
+@dataclass(frozen=True)
+class ControlRequest:
+    """A ventilation setting made over Modbus: a level or an airflow."""
+
+    mode: r.ControlMode
+    """SWITCH for a ventilation level, FLOW for an airflow."""
+    value: int
+    """The ventilation level, or the airflow in m3/h."""
+
+    @classmethod
+    def from_registers(cls, control: Sequence[int]) -> ControlRequest | None:
+        """Decode the remote control registers from 8000 on.
+
+        Returns None while the unit's own control sets the ventilation.
+        """
+        mode = member_of(r.ControlMode, control[0])
+        if mode is None or mode not in r.CONTROL_VALUE_REGISTERS:
+            return None
+        request = cls(mode, control[r.CONTROL_VALUE_REGISTERS[mode] - r.RC_CONTROL])
+        if mode == r.ControlMode.SWITCH and request.level is None:
+            return None
+        return request
+
+    @property
+    def register(self) -> int:
+        """The remote control register that holds the value."""
+        return r.CONTROL_VALUE_REGISTERS[self.mode]
+
+    @property
+    def level(self) -> r.VentilationLevel | None:
+        """The ventilation level, or None for an airflow."""
+        if self.mode != r.ControlMode.SWITCH:
+            return None
+        return member_of(r.VentilationLevel, self.value)
+
+
+@dataclass(frozen=True, kw_only=True)
+class FanReadings:
+    """The readings of one fan and the air it moves."""
+
+    status: int
+    """A FanStatus value."""
+    flow_setpoint: int
+    """In m3/h."""
+    flow: int
+    """In m3/h."""
+    speed: int
+    """In rpm."""
+    temperature: float | None
+    """In degC, or None when the sensor is not fitted."""
+    humidity: float
+    """In %."""
+    pressure: float
+    """In Pa."""
+
+    @classmethod
+    def from_registers(cls, fan: Sequence[int], pressure: int) -> FanReadings:
+        """Decode a fan's eight registers (4030 or 4040 on) and its pressure."""
+        return cls(
+            status=fan[0],
+            flow_setpoint=fan[1],
+            flow=fan[2],
+            speed=fan[4],
+            temperature=_temperature(fan[6]),
+            humidity=fan[7],
+            pressure=_signed(pressure) / 10,
+        )
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -62,29 +137,16 @@ class FlairState:
     fan_control_type: int
     ventilation_mode: int
     switch_position: int
-    control_mode: int
-    control_level: int
-    control_flow: int
+    request: ControlRequest | None
+    """The level or airflow set over Modbus, or None under the unit's own control."""
     standby: bool
 
-    supply_fan_status: int
-    supply_flow_setpoint: int
-    supply_flow: int
-    supply_fan_speed: int
-    supply_temperature: float | None
-    supply_humidity: float
-    supply_pressure: float
-
-    exhaust_fan_status: int
-    exhaust_flow_setpoint: int
-    exhaust_flow: int
-    exhaust_fan_speed: int
-    exhaust_temperature: float | None
-    exhaust_humidity: float
-    exhaust_pressure: float
+    supply: FanReadings
+    exhaust: FanReadings
 
     bypass_status: int
-    frost_status: int
+    frost_status: r.FrostStatus | None
+    """None for a value Brink does not document."""
     frost_heater_power: int
     ntc1_temperature: float | None
     ntc2_temperature: float | None
@@ -96,7 +158,7 @@ class FlairState:
     operating_hours: int | None
     """None when the unit does not report it."""
 
-    flow_presets: tuple[int, int, int, int]
+    flow_presets: FlowPresets
     bypass_mode: int
     bypass_temp_indoor: float
     bypass_temp_outdoor: float
@@ -126,9 +188,7 @@ class FlairState:
     @property
     def requested_level(self) -> r.VentilationLevel | None:
         """The level Modbus set, or None for a set airflow or the unit's own control."""
-        if self.control_mode != r.ControlMode.SWITCH:
-            return None
-        return member_of(r.VentilationLevel, self.control_level)
+        return None if self.request is None else self.request.level
 
     @property
     def target_flow(self) -> int:
@@ -137,11 +197,11 @@ class FlairState:
         While Modbus sets the ventilation, this is what was asked for: the
         unit's own setpoint (4031) lags behind a change by several seconds.
         """
-        if self.control_mode == r.ControlMode.FLOW:
-            return self.control_flow
-        if (level := self.requested_level) is not None:
+        if self.request is None:
+            return self.supply.flow_setpoint
+        if (level := self.request.level) is not None:
             return self.flow_presets[level]
-        return self.supply_flow_setpoint
+        return self.request.value
 
     @property
     def bypass_state(self) -> r.BypassState:
@@ -155,7 +215,7 @@ class FlairState:
             self.active_function
             in (r.ActiveFunction.NON_BLOCKING_ERROR, r.ActiveFunction.BLOCKING_ERROR)
             or self.fan_control_type == r.FanControlType.ERROR
-            or r.FanStatus.ERROR in (self.supply_fan_status, self.exhaust_fan_status)
+            or r.FanStatus.ERROR in (self.supply.status, self.exhaust.status)
             or self.frost_status == r.FrostStatus.ERROR
             or self.bypass_state == r.BypassState.ERROR
         )
@@ -199,9 +259,8 @@ class FlairDevice:
         """Wrap a Modbus unit."""
         self._unit = unit
         self.identity: FlairIdentity | None = None
-        # What Home Assistant last asked for: a control mode and its value,
-        # a level in switch mode or m3/h in flow mode.
-        self._requested: tuple[r.ControlMode, int] | None = None
+        # The level or airflow last set, to send again if the unit forgets it.
+        self._requested: ControlRequest | None = None
         self._unsupported: set[tuple[str, int]] = set()
 
     @property
@@ -212,9 +271,9 @@ class FlairDevice:
     @property
     def model(self) -> FlairModel:
         """The model, or a generic one before identification or when unknown."""
-        if self.identity is None or self.identity.model is None:
+        if self.identity is None:
             return UNKNOWN_MODEL
-        return self.identity.model
+        return self.identity.model_or_unknown
 
     async def _read(self, kind: RegisterKind, address: int, count: int) -> list[int]:
         if kind == "input":
@@ -250,7 +309,7 @@ class FlairDevice:
             appliance_type=appliance_type,
             software_version=software,
             hardware_version=f"{hardware >> 8}.{hardware & 0xFF}",
-            model=model_for_appliance_type(appliance_type),
+            model=APPLIANCE_TYPES.get(appliance_type),
         )
         return self.identity
 
@@ -269,48 +328,28 @@ class FlairDevice:
         control = await self._read("holding", r.RC_CONTROL, 4)
         settings = await self._read_settings()
 
-        control_mode = control[0]
+        request = ControlRequest.from_registers(control)
         if self._requested is None:
-            # Pick up a level or flow set before Home Assistant restarted.
-            if (
-                control_mode == r.ControlMode.SWITCH
-                and member_of(r.VentilationLevel, control[1]) is not None
-            ):
-                self._requested = (r.ControlMode.SWITCH, control[1])
-            elif control_mode == r.ControlMode.FLOW:
-                self._requested = (r.ControlMode.FLOW, control[2])
-        if self._requested is not None and control_mode == r.ControlMode.OFF:
+            # Pick up a level or airflow set before this device was created.
+            self._requested = request
+        elif control[0] == r.ControlMode.OFF:
             # The remote control registers reset after a power cut.
             _LOGGER.info("Modbus control was reset, sending the last setting again")
-            await self._apply_control(*self._requested)
+            await self._apply_control(self._requested)
             control = await self._read("holding", r.RC_CONTROL, 4)
-            control_mode = control[0]
+            request = ControlRequest.from_registers(control)
 
         state = FlairState(
             active_function=status[0],
             fan_control_type=status[1],
             ventilation_mode=status[2],
             switch_position=switch_and_sensors[0],
-            control_mode=control_mode,
-            control_level=control[1],
-            control_flow=control[2],
+            request=request,
             standby=control[3] == 1,
-            supply_pressure=_signed(status[3]) / 10,
-            exhaust_pressure=_signed(status[4]) / 10,
-            supply_fan_status=supply[0],
-            supply_flow_setpoint=supply[1],
-            supply_flow=supply[2],
-            supply_fan_speed=supply[4],
-            supply_temperature=_temperature(supply[6]),
-            supply_humidity=supply[7],
-            exhaust_fan_status=exhaust[0],
-            exhaust_flow_setpoint=exhaust[1],
-            exhaust_flow=exhaust[2],
-            exhaust_fan_speed=exhaust[4],
-            exhaust_temperature=_temperature(exhaust[6]),
-            exhaust_humidity=exhaust[7],
+            supply=FanReadings.from_registers(supply, pressure=status[3]),
+            exhaust=FanReadings.from_registers(exhaust, pressure=status[4]),
             bypass_status=bypass_status,
-            frost_status=frost[0],
+            frost_status=member_of(r.FrostStatus, frost[0]),
             frost_heater_power=frost[1],
             ntc1_temperature=_temperature(switch_and_sensors[1]),
             ntc2_temperature=_temperature(switch_and_sensors[2]),
@@ -357,47 +396,40 @@ class FlairDevice:
             }
         return values
 
-    async def _write(self, address: int, value: int) -> None:
-        await self._unit.write_register(address, value)
-
     async def async_set_setting[V](self, setting: Setting[V], value: V) -> None:
         """Write a setting."""
         if setting.encode is None:
             msg = f"{setting.field} is written with a method of its own"
             raise TypeError(msg)
-        await self._write(setting.address, setting.encode(value))
+        await self._unit.write_register(setting.address, setting.encode(value))
 
     async def async_set_flow_preset(self, level: r.VentilationLevel, flow: int) -> None:
         """Set the airflow behind a ventilation level, in m3/h."""
-        await self._write(FLOW_PRESETS.address + level, flow)
+        await self._unit.write_register(FLOW_PRESETS.address + level, flow)
 
     async def async_set_standby(self, standby: bool) -> None:
         """Put the unit in standby, or wake it."""
-        await self._write(r.RC_STANDBY, 1 if standby else 2)
+        await self._unit.write_register(r.RC_STANDBY, 1 if standby else 2)
 
     async def async_reset_filter(self) -> None:
         """Reset the filter counter after a filter change."""
-        await self._write(r.RC_FILTER_RESET, 1)
+        await self._unit.write_register(r.RC_FILTER_RESET, 1)
 
-    async def _apply_control(self, mode: r.ControlMode, value: int) -> None:
+    async def _apply_control(self, request: ControlRequest) -> None:
         # A Flair 300 rejects a write of 8000 that does not change it
         # (Illegal Data Value), so only switch it when it is not set yet.
         (control_mode,) = await self._read("holding", r.RC_CONTROL, 1)
-        if control_mode != mode:
-            await self._write(r.RC_CONTROL, mode)
-        address = (
-            r.RC_SWITCH_POSITION if mode == r.ControlMode.SWITCH else r.RC_FLOW_RATE
-        )
-        await self._write(address, value)
+        if control_mode != request.mode:
+            await self._unit.write_register(r.RC_CONTROL, request.mode)
+        await self._unit.write_register(request.register, request.value)
+        self._requested = request
 
     async def async_set_level(self, level: r.VentilationLevel) -> None:
         """Take over control and set the ventilation level."""
-        await self._apply_control(r.ControlMode.SWITCH, level)
-        self._requested = (r.ControlMode.SWITCH, level)
+        await self._apply_control(ControlRequest(r.ControlMode.SWITCH, level))
 
     async def async_set_flow(self, flow: int) -> None:
         """Take over control and set the airflow in m3/h, within the model's range."""
         model = self.model
         flow = min(model.max_flow, max(model.min_flow, flow))
-        await self._apply_control(r.ControlMode.FLOW, flow)
-        self._requested = (r.ControlMode.FLOW, flow)
+        await self._apply_control(ControlRequest(r.ControlMode.FLOW, flow))

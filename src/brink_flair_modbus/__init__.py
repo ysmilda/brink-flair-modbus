@@ -1,6 +1,12 @@
 """Read and control Brink Flair ventilation units over Modbus."""
 
-from .device import FlairDevice, FlairIdentity, FlairState
+from .device import (
+    ControlRequest,
+    FanReadings,
+    FlairDevice,
+    FlairIdentity,
+    FlairState,
+)
 from .models import APPLIANCE_TYPES, UNKNOWN_MODEL, FlairModel
 from .registers import (
     DEFAULT_BAUDRATE,
@@ -28,6 +34,7 @@ from .settings import (
     IMBALANCE_ALLOWED,
     SETTINGS,
     SUPPLY_IMBALANCE,
+    FlowPresets,
     Setting,
 )
 
@@ -54,10 +61,13 @@ __all__ = [
     "BypassMode",
     "BypassState",
     "ControlMode",
+    "ControlRequest",
+    "FanReadings",
     "FlairDevice",
     "FlairIdentity",
     "FlairModel",
     "FlairState",
+    "FlowPresets",
     "FrostStatus",
     "Setting",
     "VentilationLevel",

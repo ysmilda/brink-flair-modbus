@@ -35,8 +35,3 @@ UNKNOWN_MODEL = FlairModel(name="Flair", min_flow=50, max_flow=600)
 APPLIANCE_TYPES: dict[int, FlairModel] = {
     24: FLAIR_300,
 }
-
-
-def model_for_appliance_type(appliance_type: int) -> FlairModel | None:
-    """Return the model behind an appliance type, or None if it is unknown."""
-    return APPLIANCE_TYPES.get(appliance_type)

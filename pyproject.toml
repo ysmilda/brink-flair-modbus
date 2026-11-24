@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "brink-flair-modbus"
-version = "1.0.0"
+version = "0.1.0"
 description = "Read and control Brink Flair ventilation units over Modbus"
 readme = "README.md"
 requires-python = ">=3.13"

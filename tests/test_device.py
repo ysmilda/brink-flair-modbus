@@ -10,7 +10,9 @@ from brink_flair_modbus import (
     UNKNOWN_MODEL,
     BypassState,
     ControlMode,
+    ControlRequest,
     FlairDevice,
+    FrostStatus,
     VentilationLevel,
     member_of,
 )
@@ -72,6 +74,10 @@ async def test_state(unit: MockModbusUnit) -> None:
     assert state.flow_presets == (50, 140, 200, 250)
     assert state.value_of(BYPASS_TEMP_INDOOR) == 24.0
     assert state.bypass_state is BypassState.OPEN
+    assert state.supply.flow == 148
+    assert state.supply.temperature == 19.1
+    assert state.exhaust.pressure == 4.2
+    assert state.frost_status is FrostStatus.NO_FROST
     assert state.filter_days_remaining == 42
     assert state.flow_preset_bounds(VentilationLevel.NORMAL, 300) == (140, 250)
     assert state.flow_preset_bounds(VentilationLevel.HIGH, 300) == (200, 300)
@@ -99,7 +105,7 @@ async def test_control_restored_after_reset(unit: MockModbusUnit) -> None:
     await device.async_set_level(VentilationLevel.LOW)
     unit.holding[8000] = [0, 0, 0, 0]
     state = await device.async_update()
-    assert state.control_mode == ControlMode.SWITCH
+    assert state.request == ControlRequest(ControlMode.SWITCH, VentilationLevel.LOW)
     assert state.requested_level is VentilationLevel.LOW
 
 

@@ -232,3 +232,10 @@ class ControlMode(IntEnum):
     OFF = 0
     SWITCH = 1
     FLOW = 2
+
+
+# The remote control register that holds the value of each control mode.
+CONTROL_VALUE_REGISTERS = {
+    ControlMode.SWITCH: RC_SWITCH_POSITION,
+    ControlMode.FLOW: RC_FLOW_RATE,
+}
